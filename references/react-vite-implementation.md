@@ -9,6 +9,7 @@ Read this reference when creating or materially changing a website.
 - Organize reusable page geometry and tokens centrally. Keep page-specific composition close to the page or section component.
 - Prefer semantic HTML and native controls. Use landmarks, a logical heading order, useful alternative text, visible focus states, and keyboard-operable navigation.
 - Keep content in structured data when repeated modules share a schema; do not duplicate large component trees.
+- Use inline SVG or code-native vector marks for functional arrows, flags, and repository links. Do not rely on emoji or font glyph substitution for identity-bearing or functional icons.
 
 Suggested token shape:
 
@@ -49,6 +50,8 @@ Design the phone composition explicitly before considering the responsive work c
 - Serve appropriately sized images with stable aspect ratios. Keep the primary content and navigation usable on slow connections even while imagery loads.
 - Check sticky and fixed elements against zoom, orientation changes, long translated text, and the mobile keyboard.
 - Preserve the reading order in the DOM. Visual grid rearrangement must not produce a confusing screen-reader or keyboard order.
+- Use deliberate responsive copy when one string cannot compose well everywhere. A long desktop interaction note may need a concise touch-specific variant; make the active variant deterministic and accessible rather than shrinking text or accepting uncontrolled wraps.
+- Treat the phone footer as an explicit grid state. Declare its semantic rows and alignment at each target width instead of relying on natural wrapping.
 
 Mobile Swiss design should retain rigor through fewer relationships, not miniaturization: reduce columns, shorten measures, simplify secondary metadata, and preserve the strongest alignment and hierarchy.
 
@@ -79,3 +82,10 @@ Add or update repository documentation with:
 - validation commands and any deliberate grid exceptions.
 
 Use comments for non-obvious implementation reasoning, not narration of self-evident JSX or CSS.
+
+## CSS maintainability
+
+- Keep styles readable and normally formatted; do not retain compressed one-line source stylesheets.
+- After clusters of visual revisions, consolidate values into semantic tokens and breakpoint rules.
+- Remove repeated selectors, obsolete declarations, and late override layers once the intended state is known.
+- Prefer one authoritative definition per role or component state. Document intentional exceptions.

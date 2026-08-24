@@ -33,10 +33,13 @@ Prefer CSS Grid for page geometry and Flexbox for one-dimensional alignment with
 
 - Prefer Helvetica Neue when it is legitimately available; otherwise use a carefully chosen neo-grotesk such as Inter, Arial, or a project-supplied equivalent.
 - Use no more typefaces or weights than the hierarchy needs. A single family often suffices.
+- Define semantic tokens for navigation, metadata, section labels, headlines, metrics, controls, figure annotations, map labels, body copy, and footer text before styling individual components. Reuse these roles across selectors and breakpoints.
 - Set body copy for calm reading and use strong size, weight, and spatial contrast for headings.
 - Default to sentence case and flush-left/ragged-right setting. Reserve uppercase for short functional labels.
 - Tune line height, tracking, and measure together. Never compress text merely to force a grid fit.
 - Use tabular numerals where columns of numbers must align.
+- Do not use the grid to justify tiny functional text. Navigation, kickers, methods labels, dataset links, annotations, and footers must remain comfortably readable at 320–430 CSS px and 200% zoom.
+- Inspect large bold metrics at representative phone device-pixel ratios. Negative tracking can create apparent glyph collisions even when element boxes do not overlap; prefer natural spacing when in doubt.
 
 ## Composition, color, and imagery
 

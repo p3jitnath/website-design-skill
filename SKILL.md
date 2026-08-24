@@ -15,6 +15,7 @@ Build functional websites whose structure, typography, and behavior translate Jo
 - Make the grid mathematically explicit before styling components. Define container margins, columns, gutters, vertical rhythm, component spans, and breakpoint transformations as shared CSS tokens.
 - Align every major edge to the grid. Avoid arbitrary offsets, decorative misalignment, and one-off magic numbers.
 - Use flush-left, ragged-right typography by default, with a restrained sans-serif family, few weights, strong scale contrast, and readable measures.
+- Define named semantic type roles before tuning components: navigation, metadata, section labels, headlines and metrics, controls, figure annotations, map labels, body copy, and footer text. Do not accumulate selector-specific font-size overrides.
 - Prefer asymmetry, objective photography, geometric form, generous negative space, functional color, and zero gratuitous ornament.
 - Make mobile a first-class composition, not a scaled desktop fallback. Every page must render cleanly from 320 CSS px upward, use deliberate phone grid spans, preserve hierarchy and rhythm, avoid horizontal overflow, and remain fully operable by touch.
 - Apply reveal-on-scroll fades to page sections and repeated content. The reveal must be subtle, must not delay access to content, and must become immediate when `prefers-reduced-motion: reduce` is active. Do not hijack scroll, add fake inertia, or hide essential content when JavaScript fails.
@@ -25,11 +26,12 @@ Build functional websites whose structure, typography, and behavior translate Jo
 
 1. Inspect the repository, existing design system, content, routes, assets, and project instructions before editing. Preserve working conventions unless they conflict with the request.
 2. Clarify or infer the site’s communication objective and rank its content. The most important information receives the strongest typographic and spatial emphasis.
-3. Read [references/swiss-design-system.md](references/swiss-design-system.md) before designing. For implementation details, also read [references/react-vite-implementation.md](references/react-vite-implementation.md).
+3. Read [references/swiss-design-system.md](references/swiss-design-system.md) before designing and [references/react-vite-implementation.md](references/react-vite-implementation.md) before implementation. When the site contains charts or maps, read [references/data-visualization.md](references/data-visualization.md). When it includes custom fonts, favicons, deployment, or social previews, read [references/production-identity.md](references/production-identity.md).
 4. Write a compact design specification before implementation: grid geometry at each breakpoint, baseline unit, type scale, palette roles, image treatment, interaction states, reveal behavior, and the mobile navigation/content order.
 5. Build semantic components from the design tokens. Establish the grid and page shell first, then typography, content modules, imagery, and motion.
 6. Inspect every route at 320, 360, 375, 390, and 430 CSS px, at a representative tablet width, and at desktop widths. Also check a short landscape phone viewport. Use the development grid overlay to verify alignment rather than judging by eye alone.
-7. Run the project’s lint, tests, and production build. Review the result with [references/review-checklist.md](references/review-checklist.md), fix material failures, and report what was verified.
+7. During a long revision session, periodically consolidate new values into semantic tokens, remove superseded CSS, and rerun the viewport matrix rather than layering overrides indefinitely.
+8. Run the project’s lint, tests, and production build. Review the result with [references/review-checklist.md](references/review-checklist.md), fix material failures, and report what was verified.
 
 ## Design judgment
 
@@ -41,4 +43,4 @@ Use actual content whenever available. Choose images for documentary or conceptu
 
 ## Completion standard
 
-A website is complete only when it runs as a React/Vite project, its production build succeeds, every route passes the documented mobile viewport checks without clipping or horizontal overflow, key layouts align to the documented grid, touch targets and navigation work, responsive states are coherent, scroll reveals work with a reduced-motion fallback, keyboard focus is visible, and repository documentation explains how to maintain the system.
+A website is complete only when it runs as a React/Vite project, its production build succeeds, every route passes the documented mobile viewport checks without clipping or horizontal overflow, key layouts align to the documented grid, touch targets and navigation work, responsive states are coherent, scroll reveals work with a reduced-motion fallback, keyboard focus is visible, and repository documentation explains how to maintain the system. When deployment is in scope, completion also requires successful CI/deployment and inspection of the live site—not only a local build.
