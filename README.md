@@ -13,6 +13,7 @@ The skill treats the grid as a governing communication system. It requires expli
 - subtle fade-in reveals during normal scrolling
 - progressive enhancement and `prefers-reduced-motion` support
 - first-class mobile layouts tested from 320 CSS px upward
+- distinct tablet compositions tested at representative iPad-class widths
 - accessible touch, keyboard, chart, map, and navigation behavior
 - maintainable tokens and consolidated responsive CSS
 - licensed fonts, documented assets, and production-path verification

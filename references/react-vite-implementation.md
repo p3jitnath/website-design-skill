@@ -55,6 +55,22 @@ Design the phone composition explicitly before considering the responsive work c
 
 Mobile Swiss design should retain rigor through fewer relationships, not miniaturization: reduce columns, shorten measures, simplify secondary metadata, and preserve the strongest alignment and hierarchy.
 
+## Tablet composition
+
+Treat tablets as a separate responsive state rather than assuming desktop or phone rules will interpolate successfully.
+
+- Inspect representative widths at 768, 834, 1024, and 1366 CSS px in relevant orientations.
+- Reassign grid starts and spans deliberately for tablet reading order, navigation, metrics, figures, and footers.
+- Check large metrics with units, multi-column figure captions, navigation density, and mixed text/media modules for awkward intermediate wrapping.
+- When specific hardware is in scope, include iPad Pro portrait and its realistic device-pixel ratio in screenshot inspection.
+
+## Scientific measurements
+
+- Use one project-wide formatter for signs, decimal precision, spacing, degree symbols, units, and anomalies across prose, cards, tables, and plots.
+- Keep a value and its unit in one non-wrapping semantic group, such as `+5.64 °C`. Make the surrounding grid and responsive type role accommodate the group without clipping.
+- Preserve typographic spacing intentionally; do not allow isolated selectors or manual strings to alternate between forms such as `2m` and `2 m`.
+- Inspect large bold numerals in screenshots at realistic device-pixel ratios, especially on iOS. Avoid negative tracking when glyphs appear to collide.
+
 ## Fade-in on scroll
 
 Implement one reusable reveal primitive with `IntersectionObserver`. Apply it consistently to meaningful sections and stagger repeated children sparingly. A typical transition is opacity `0 → 1` with a small upward translation over roughly 350–650 ms. Content must remain in normal document flow.
@@ -89,3 +105,7 @@ Use comments for non-obvious implementation reasoning, not narration of self-evi
 - After clusters of visual revisions, consolidate values into semantic tokens and breakpoint rules.
 - Remove repeated selectors, obsolete declarations, and late override layers once the intended state is known.
 - Prefer one authoritative definition per role or component state. Document intentional exceptions.
+
+## Browser-validation fallback
+
+If the preferred browser runtime cannot launch in CI, a container, or an HPC environment, record the exact command, error, and checks that could not run. Complete source validation and any available nonvisual assertions, but explicitly defer visual/device approval. Never present source inspection, a successful build, or synthetic DOM measurements as a completed browser screenshot review.

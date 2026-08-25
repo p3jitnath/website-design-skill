@@ -45,6 +45,7 @@ Prefer CSS Grid for page geometry and Flexbox for one-dimensional alignment with
 
 - Create tension with asymmetric but balanced spans, scale shifts, cropping, and negative space.
 - Keep the palette small: usually a neutral field, high-contrast text, and one functional accent. Assign each color a semantic role.
+- Define accents by meaning, not component. If red denotes primary findings, expose one shared metric-value role; keep data-series colors distinct from interface, status, and identity roles.
 - Meet WCAG contrast requirements even when historic references do not.
 - Prefer relevant black-and-white or restrained-color photography over decorative illustration. Preserve focal meaning across responsive crops.
 - Use rules, circles, blocks, and other geometry only when they organize, label, sequence, or explain.

@@ -23,8 +23,12 @@ Test dragging, tapping, previous/next actions, focus order, arrow keys, value an
 
 ## SVG reveal motion
 
+- Give motion a communicative sequence. Reveal annual marks chronologically and comparative distributions in a declared series order; do not animate merely to decorate.
 - Start staggered annotation motion only when the containing section enters the viewport.
 - Use a short, shared duration/easing/delay system and stagger only enough to clarify sequence.
 - Reveal once; do not replay on ordinary scrolling.
+- When a user changes the selected dataset, season, or equivalent state, restart only the affected data-dependent figure animation by remounting or explicitly resetting it. Keep unrelated figures and page reveals stable.
 - Keep annotations visible before JavaScript enhancement and reveal them immediately under `prefers-reduced-motion: reduce`.
 - Verify rapid scrolling and slow script execution cannot strand marks in a hidden state.
+
+Test animation state as well as final screenshots. Assert that the first and last chronological marks receive correctly ordered delays, an applicable dataset change restarts the intended figure, ordinary scrolling does not replay it, and reduced motion removes hidden, transformed, clipped, or dashed interim states.

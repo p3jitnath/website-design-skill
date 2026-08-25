@@ -8,9 +8,17 @@
 - No unexplained magic offsets undermine the grid.
 - Responsive layouts are recomposed rather than squeezed.
 
+## Tablet acceptance gate
+
+- Every route has been inspected at 768, 834, 1024, and 1366 CSS px where relevant.
+- Tablet states have deliberate grid spans and content ordering rather than accidental interpolation.
+- Metrics retain their units, navigation remains balanced, figures and captions compose cleanly, and intermediate line wraps do not weaken hierarchy.
+- When named devices are in scope, screenshots use realistic CSS viewports and device-pixel ratios, including iPad Pro portrait.
+
 ## Mobile acceptance gate
 
 - Every route has been inspected at 320, 360, 375, 390, and 430 CSS px and in a short landscape viewport.
+- When named devices are in scope, include iPhone 15 Pro portrait at a realistic device-pixel ratio rather than relying only on a generic viewport preset.
 - Capture screenshots at the target widths and visually inspect wrapping, centring, line count, text collisions, touch-target spacing, and safe-area padding; absence of overflow alone is not sufficient.
 - There is no unintended horizontal scrolling, clipped text, overlapping content, or off-screen control.
 - Phone layouts use declared grid starts and spans rather than a stack of arbitrary margins.
@@ -23,6 +31,7 @@
 - The visual order agrees with the semantic DOM reading order.
 - Reveal animations do not leave mobile content invisible during fast scrolling or slow script execution.
 - Footer content occupies the intended semantic rows and baselines at each target width.
+- Scientific values and units remain an indivisible, correctly formatted group without clipping or unwanted wraps.
 
 ## Communication and form
 
@@ -51,6 +60,8 @@
 - No placeholder content, broken links, nonfunctional controls, or missing route states remain.
 - Repository documentation explains setup, architecture, design tokens, grid logic, motion, accessibility, and asset provenance.
 - Browser assertions supplement screenshots: no document overflow, intended footer row count, exact responsive copy visibility, expected element coordinates where centring matters, reduced-motion visibility, clean console output, and successful asset responses.
+- Visualization assertions verify ordered animation delays, intended data-change restarts, no ordinary-scroll replay, and fully visible reduced-motion states.
 - Link behavior distinguishes in-page navigation, internal routes/downloads, and external sources. Internal actions preserve the current page; external new-tab behavior and `rel` values are consistent with project policy.
 - Favicon, theme color, document title, description, asset MIME types, and production subdirectory paths are correct.
 - When deployment is in scope, CI and hosting finish successfully; the live HTTP response, bundle copy, styles, fonts, and assets match the intended release.
+- If browser automation cannot run, the report states the exact limitation and defers visual approval; source checks and builds are not described as device validation.
