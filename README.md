@@ -1,6 +1,6 @@
 # Swiss Website Design Skill
 
-A Codex skill for designing, building, revising, and auditing polished React/Vite websites through Josef Müller-Brockmann’s Swiss International Typographic Style.
+An Agent Skill for Codex and Claude Code that designs, builds, revises, and audits polished React/Vite websites through Josef Müller-Brockmann’s Swiss International Typographic Style.
 
 The skill treats the grid as a governing communication system. It requires explicit columns, gutters, margins, baseline rhythm, component spans, and responsive transformations rather than applying a superficial minimalist aesthetic.
 
@@ -35,20 +35,28 @@ The installer copies the skill to:
 ${CODEX_HOME:-$HOME/.codex}/skills/swiss-website-design
 ```
 
-Restart Codex if the skill does not appear in the current session.
+Codex is the default harness. To install for Claude Code instead, run:
+
+```bash
+./setup.sh --harness claude
+```
+
+The Claude installation uses `${CLAUDE_HOME:-$HOME/.claude}/skills/swiss-website-design`. Restart the selected harness if the skill does not appear in the current session.
 
 ## Use
 
-Open Codex in a website project and invoke:
+Open the selected harness in a website project and invoke `$swiss-website-design` in Codex or `/swiss-website-design` in Claude Code.
 
 ```text
 $swiss-website-design
+/swiss-website-design
 ```
 
 Example request:
 
 ```text
 Use $swiss-website-design to build a responsive editorial website in React and Vite. Define and document the grid before implementation, use subtle fade-in reveals, and verify every route across the required mobile viewport matrix.
+/swiss-website-design build a responsive editorial website in React and Vite. Define and document the grid before implementation, use subtle fade-in reveals, and verify every route across the required mobile viewport matrix.
 ```
 
 ## Structure
