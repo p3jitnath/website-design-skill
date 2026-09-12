@@ -1,46 +1,47 @@
 ---
 name: swiss-website-design
-description: Design, build, revise, and audit websites in Josef Müller-Brockmann’s rigorous Swiss International Typographic Style. Use for grid-led web design, typographic editorial sites, portfolios, institutional sites, and React frontends that require disciplined hierarchy, restrained color, objective imagery, and purposeful motion.
+description: Design, build, or refine websites in Swiss International Typographic Style using explicit grids, restrained typography, and deliberate responsive layouts.
 metadata:
-  short-description: Build rigorous Swiss-style React websites
+  short-description: Build rigorous Swiss-style websites
 ---
 
 # Swiss Website Design
 
-Build functional websites whose structure, typography, and behavior translate Josef Müller-Brockmann’s design principles to the web. Do not merely imitate a poster aesthetic: derive every composition from content, an explicit grid, and a clear communication hierarchy.
+Translate Josef Müller-Brockmann's design principles into a functional website: derive composition from content, an explicit grid, and a clear communication hierarchy.
 
-## Non-negotiable requirements
+## Scope and initiative
 
-- Use React with Vite. If starting from nothing, scaffold a Vite React application; do not substitute static HTML, Next.js, a page builder, or another framework unless the user explicitly overrides this requirement.
-- Make the grid mathematically explicit before styling components. Define container margins, columns, gutters, vertical rhythm, component spans, and breakpoint transformations as shared CSS tokens.
-- Align every major edge to the grid. Avoid arbitrary offsets, decorative misalignment, and one-off magic numbers.
-- Use flush-left, ragged-right typography by default, with a restrained sans-serif family, few weights, strong scale contrast, and readable measures.
-- Define named semantic type roles before tuning components: navigation, metadata, section labels, headlines and metrics, controls, figure annotations, map labels, body copy, and footer text. Do not accumulate selector-specific font-size overrides.
-- Prefer asymmetry, objective photography, geometric form, generous negative space, functional color, and zero gratuitous ornament.
-- Make phone and tablet layouts first-class compositions, not scaled desktop fallbacks. Every page must render cleanly from 320 CSS px upward, use deliberate grid spans at each state, preserve hierarchy and rhythm, avoid horizontal overflow, and remain fully operable by touch.
-- Apply reveal-on-scroll fades to page sections and repeated content. The reveal must be subtle, must not delay access to content, and must become immediate when `prefers-reduced-motion: reduce` is active. Do not hijack scroll, add fake inertia, or hide essential content when JavaScript fails.
-- Produce a polished, accessible, content-complete result. Do not leave placeholder copy, fake controls, broken routes, or decorative interactions without a purpose.
-- Document the generated website in its repository: include setup/run/build commands, design tokens, grid logic, component structure, content/image sources, and important accessibility decisions.
+Honor the user's instructions, existing project conventions, and approved design over these defaults. For a new project, use React with Vite unless another stack is requested. For an existing site, keep its framework and working structure unless migration is part of the request. A local correction does not require a redesign or new application.
 
-## Workflow
+Infer routine choices from the content and project context, implement the requested result, and fix material defects found during verification. Ask only when missing information affects scope or a consequential decision. Complete independent work while it is unresolved. Reuse existing authorization for commits or deployment; a reference in this skill does not introduce a new approval round.
 
-1. Inspect the repository, existing design system, content, routes, assets, and project instructions before editing. Preserve working conventions unless they conflict with the request.
-2. Clarify or infer the site’s communication objective and rank its content. The most important information receives the strongest typographic and spatial emphasis.
-3. Read [references/swiss-design-system.md](references/swiss-design-system.md) before designing and [references/react-vite-implementation.md](references/react-vite-implementation.md) before implementation. When the site contains charts or maps, read [references/data-visualization.md](references/data-visualization.md). When it includes custom fonts, favicons, deployment, or social previews, read [references/production-identity.md](references/production-identity.md).
-4. Write a compact design specification before implementation: grid geometry at each breakpoint, baseline unit, type scale, palette roles, image treatment, interaction states, reveal behavior, and the mobile navigation/content order.
-5. Build semantic components from the design tokens. Establish the grid and page shell first, then typography, content modules, imagery, and motion.
-6. Inspect every route at 320, 360, 375, 390, and 430 CSS px; 768, 834, 1024, and 1366 px tablet states; and desktop widths. Also check a short landscape phone viewport. When named devices are in scope, test their CSS viewport and realistic device-pixel ratio. Use the development grid overlay and screenshots to verify alignment and visual quality rather than judging from source or overflow checks alone.
-7. During a long revision session, periodically consolidate new values into semantic tokens, remove superseded CSS, and rerun the viewport matrix rather than layering overrides indefinitely.
-8. Run the project’s lint, tests, and production build. Review the result with [references/review-checklist.md](references/review-checklist.md), fix material failures, and report what was verified.
+## Design contract
 
-## Design judgment
+- Define columns, gutters, margins, vertical rhythm, component spans, and breakpoint transformations as shared CSS tokens. Align major edges to the grid and document intentional exceptions when they clarify the content.
+- Use semantic type roles, restrained sans-serif typography, flush-left/ragged-right text, strong hierarchy, and readable measures. Consolidate tokens instead of layering selector-specific overrides.
+- Use asymmetry, objective imagery, generous whitespace, and functional colour. Avoid arbitrary ornament and unreadably small labels.
+- Compose phone and tablet states deliberately, supporting widths from 320 CSS px upward without clipping or unintended horizontal scrolling. Preserve semantic reading order and touch and keyboard access.
+- For new sites, use subtle section reveals with visible-by-default content and an immediate reduced-motion state. Respect an existing or requested motion policy. Avoid scroll hijacking or delayed access to essential content.
+- Use supplied content and assets first. When sourcing is needed and permitted by the user's instructions and host, research relevant imagery and record provenance and licensing. Do not manufacture content or credentials to fill gaps.
 
-The grid is an ordering principle, not a cage. Use it to create clarity and meaningful contrast. Controlled exceptions are allowed only when they reinforce the content and remain visibly related to grid lines. Record intentional exceptions in the design documentation.
+## Read for the work at hand
 
-Avoid the common false signals of “Swiss style”: random red rectangles, excessive rules, tiny unreadable labels, gratuitous all-caps, generic black-and-white minimalism, poster layouts pasted onto every screen, and animation that competes with information.
+Read only the relevant reference or section:
 
-Use actual content whenever available. Choose images for documentary or conceptual relevance, crop them decisively, and record their source and license. Do not browse for visual references or assets unless the user permits or requests internet research.
+| Work | Reference |
+|---|---|
+| Establish or materially revise the visual system | [Swiss design system](references/swiss-design-system.md) |
+| Scaffold React/Vite, change responsive composition, or implement interactions | [Implementation](references/react-vite-implementation.md); adapt layout guidance to an existing stack. |
+| Change charts, maps, data controls, or their animation | [Data visualization](references/data-visualization.md) |
+| Change fonts, identity, social previews, or prepare deployment | [Production identity](references/production-identity.md) |
+| Verify the affected pages or a full site | Relevant items in [review checklist](references/review-checklist.md) |
 
-## Completion standard
+For a new visual system, record a compact specification of grid, type, colour, content order, and motion before building. For a local edit, use existing tokens and update documentation only where the system changes.
 
-A website is complete only when it runs as a React/Vite project, its production build succeeds, every route passes the documented mobile viewport checks without clipping or horizontal overflow, key layouts align to the documented grid, touch targets and navigation work, responsive states are coherent, scroll reveals work with a reduced-motion fallback, keyboard focus is visible, and repository documentation explains how to maintain the system. When deployment is in scope, completion also requires successful CI/deployment and inspection of the live site—not only a local build.
+## Verify and finish
+
+Check changed routes and components at representative phone, tablet, and desktop widths and at breakpoints affected by the edit. For a new site or shared responsive-layout change, cover all routes and the full viewport matrix in the review checklist. Include any named devices. Inspect screenshots for hierarchy, wrapping, spacing, and alignment; a clean overflow assertion alone does not prove visual quality.
+
+Run applicable project checks and a production build for implementation changes. Fix regressions and rerun affected checks. Broaden testing only for a new failure or concern, and avoid repeating the full device matrix for a small independent correction. If the browser cannot run, complete available checks and report the specific visual validation still missing.
+
+Deliver the working changes and concise validation notes. New sites also need setup/run/build instructions, design tokens, grid logic, component structure, asset sources, and accessibility decisions. When deployment is requested and authorized, continue through CI/hosting completion and inspect the live result. Do not stop at a local build while publication remains in scope. If a skill instruction causes a pause, identify the file and explain the actual conflict.

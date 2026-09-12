@@ -1,4 +1,4 @@
 interface:
   display_name: "Swiss Website Design"
-  short_description: "Build rigorous grid-led React and Vite websites"
-  default_prompt: "Use $swiss-website-design to create a polished React/Vite website governed by a precise Müller-Brockmann-style grid."
+  short_description: "Build rigorous grid-led responsive websites"
+  default_prompt: "Use $swiss-website-design to build or refine a responsive website with a precise Müller-Brockmann-style grid, preserving the project stack."

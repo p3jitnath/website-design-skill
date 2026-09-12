@@ -1,5 +1,7 @@
 # Final review checklist
 
+For a local edit, check affected routes, components, interactions, and responsive states. Use the full matrix below for new sites, shared responsive-layout changes, or an explicitly requested comprehensive audit. Select additional checks for concrete risks; unrelated features do not become new deliverables.
+
 ## Grid
 
 - The design specification records columns, gutters, margins, baseline, and breakpoints.
@@ -10,14 +12,14 @@
 
 ## Tablet acceptance gate
 
-- Every route has been inspected at 768, 834, 1024, and 1366 CSS px where relevant.
+- For a full responsive review, every route has been inspected at 768, 834, 1024, and 1366 CSS px where relevant.
 - Tablet states have deliberate grid spans and content ordering rather than accidental interpolation.
 - Metrics retain their units, navigation remains balanced, figures and captions compose cleanly, and intermediate line wraps do not weaken hierarchy.
 - When named devices are in scope, screenshots use realistic CSS viewports and device-pixel ratios, including iPad Pro portrait.
 
 ## Mobile acceptance gate
 
-- Every route has been inspected at 320, 360, 375, 390, and 430 CSS px and in a short landscape viewport.
+- For a full responsive review, every route has been inspected at 320, 360, 375, 390, and 430 CSS px and in a short landscape viewport.
 - When named devices are in scope, include iPhone 15 Pro portrait at a realistic device-pixel ratio rather than relying only on a generic viewport preset.
 - Capture screenshots at the target widths and visually inspect wrapping, centring, line count, text collisions, touch-target spacing, and safe-area padding; absence of overflow alone is not sufficient.
 - There is no unintended horizontal scrolling, clipped text, overlapping content, or off-screen control.
@@ -44,7 +46,7 @@
 
 ## Interaction and accessibility
 
-- Sections fade in during normal scrolling without scroll hijacking.
+- Section reveals, when part of the design, run during normal scrolling without scroll hijacking.
 - Content is visible if JavaScript fails and immediate under reduced motion.
 - Keyboard navigation, focus visibility, landmarks, headings, labels, and alternative text are sound.
 - Text and controls meet appropriate contrast and target-size expectations.
@@ -53,7 +55,7 @@
 
 ## Engineering and documentation
 
-- The project is React on Vite.
+- New projects use React on Vite unless otherwise requested; existing projects preserve their established stack.
 - Console output is clean during key journeys.
 - Lint, tests when present, and production build pass.
 - CSS has no accidental repeated selectors, obsolete late overrides, or compressed one-line source files; tokens and breakpoint rules reflect the final design.
@@ -64,4 +66,4 @@
 - Link behavior distinguishes in-page navigation, internal routes/downloads, and external sources. Internal actions preserve the current page; external new-tab behavior and `rel` values are consistent with project policy.
 - Favicon, theme color, document title, description, asset MIME types, and production subdirectory paths are correct.
 - When deployment is in scope, CI and hosting finish successfully; the live HTTP response, bundle copy, styles, fonts, and assets match the intended release.
-- If browser automation cannot run, the report states the exact limitation and defers visual approval; source checks and builds are not described as device validation.
+- If browser automation cannot run, the report states the exact limitation and identifies the visual validation still missing; source checks and builds are not described as device validation.

@@ -1,6 +1,6 @@
 # Charts, maps, and SVG interaction
 
-Read this reference when a website contains scientific charts, geographic outlines, map labels, or animated SVG annotations.
+Read the relevant sections when changing scientific charts, geographic outlines, map labels, or animated SVG annotations. Their presence elsewhere on a website does not require this workflow for an unrelated edit.
 
 ## Horizontally scrollable charts
 

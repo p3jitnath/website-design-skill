@@ -1,10 +1,10 @@
 # React and Vite implementation
 
-Read this reference when creating or materially changing a website.
+Read the relevant sections when creating a React/Vite site or changing responsive layout or interactions. Retain the stack of an existing site and adapt framework-independent guidance; this reference does not authorize a migration.
 
 ## Project foundation
 
-- Use the current stable Vite React template compatible with the repository’s Node version.
+- For a new React/Vite project, use a current stable template compatible with its Node version. Preserve an existing repository’s toolchain.
 - Keep dependencies lean. Add a router, animation library, icon set, or CSS framework only when the site truly benefits.
 - Organize reusable page geometry and tokens centrally. Keep page-specific composition close to the page or section component.
 - Prefer semantic HTML and native controls. Use landmarks, a logical heading order, useful alternative text, visible focus states, and keyboard-operable navigation.
@@ -40,7 +40,7 @@ Design the phone composition explicitly before considering the responsive work c
 
 - Keep the viewport meta tag correct and use responsive layout primitives rather than fixed page widths.
 - Define phone-specific grid columns, gutters, and edge margins. Use a 2- or 4-column grid when appropriate and declare each module’s start, span, and content order.
-- Test all routes at 320, 360, 375, 390, and 430 CSS px, plus a short landscape viewport. Do not rely on a single device preset.
+- For a new site or shared responsive change, test all routes at 320, 360, 375, 390, and 430 CSS px plus a short landscape viewport. For local changes, inspect affected routes at relevant widths and breakpoints.
 - Prevent accidental overflow: use `minmax(0, 1fr)` for grid tracks, `min-width: 0` on shrinkable children, safe wrapping for long URLs/labels, and responsive media bounded by their containers.
 - Keep ordinary body text comfortably readable without zoom. Avoid tiny Swiss-style captions; functional labels must remain legible.
 - Give interactive targets adequate touch area and separation. Do not make hover the only way to reveal information or controls.
@@ -62,7 +62,7 @@ Treat tablets as a separate responsive state rather than assuming desktop or pho
 - Inspect representative widths at 768, 834, 1024, and 1366 CSS px in relevant orientations.
 - Reassign grid starts and spans deliberately for tablet reading order, navigation, metrics, figures, and footers.
 - Check large metrics with units, multi-column figure captions, navigation density, and mixed text/media modules for awkward intermediate wrapping.
-- When specific hardware is in scope, include iPad Pro portrait and its realistic device-pixel ratio in screenshot inspection.
+- When specific hardware is in scope, test that device and its realistic device-pixel ratio; iPad Pro portrait is a useful tablet example.
 
 ## Scientific measurements
 
@@ -73,7 +73,7 @@ Treat tablets as a separate responsive state rather than assuming desktop or pho
 
 ## Fade-in on scroll
 
-Implement one reusable reveal primitive with `IntersectionObserver`. Apply it consistently to meaningful sections and stagger repeated children sparingly. A typical transition is opacity `0 → 1` with a small upward translation over roughly 350–650 ms. Content must remain in normal document flow.
+When section reveals are part of the design, implement one reusable reveal primitive with `IntersectionObserver`. Apply it consistently to meaningful sections and stagger repeated children sparingly. A typical transition is opacity `0 → 1` with a small upward translation over roughly 350–650 ms. Content must remain in normal document flow.
 
 Progressive enhancement requirements:
 
@@ -86,7 +86,7 @@ Progressive enhancement requirements:
 
 ## Documentation
 
-Add or update repository documentation with:
+For a new project, document the following. For revisions, update only the documentation affected by the change:
 
 - prerequisites and exact install/dev/build commands;
 - route and component overview;
@@ -108,4 +108,4 @@ Use comments for non-obvious implementation reasoning, not narration of self-evi
 
 ## Browser-validation fallback
 
-If the preferred browser runtime cannot launch in CI, a container, or an HPC environment, record the exact command, error, and checks that could not run. Complete source validation and any available nonvisual assertions, but explicitly defer visual/device approval. Never present source inspection, a successful build, or synthetic DOM measurements as a completed browser screenshot review.
+If the preferred browser runtime cannot launch in CI, a container, or an HPC environment, record the exact command, error, and checks that could not run. Complete source validation and any available nonvisual assertions, but state which visual/device checks remain unverified. Never present source inspection, a successful build, or synthetic DOM measurements as a completed browser screenshot review.

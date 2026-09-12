@@ -1,10 +1,12 @@
 # Swiss Website Design Skill
 
-An Agent Skill for Codex and Claude Code that designs, builds, revises, and audits polished React/Vite websites through Josef Müller-Brockmann’s Swiss International Typographic Style.
+An Agent Skill for Codex and Claude Code that designs, builds, revises, and audits polished websites through Josef Müller-Brockmann’s Swiss International Typographic Style.
 
 The skill treats the grid as a governing communication system. It requires explicit columns, gutters, margins, baseline rhythm, component spans, and responsive transformations rather than applying a superficial minimalist aesthetic.
 
-## What it enforces
+Instruction routing follows OpenAI’s [Astra skills guidance](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra). Local edits use the relevant checks; new sites and shared layout changes receive the full responsive review. Existing frameworks are preserved.
+
+## Design defaults
 
 - React with Vite for new website projects
 - mathematically defined desktop, tablet, and mobile grids
