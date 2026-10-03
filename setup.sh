@@ -64,7 +64,7 @@ fi
 mkdir -p "$SKILL_DIR"
 
 echo "Installing $SKILL_NAME for $HARNESS_NAME..."
-for item in SKILL.md references; do
+for item in SKILL.md references scripts; do
     if [ -e "$SCRIPT_DIR/$item" ]; then
         cp -R "$SCRIPT_DIR/$item" "$SKILL_DIR/$item"
     fi

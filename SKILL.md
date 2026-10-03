@@ -9,6 +9,12 @@ metadata:
 
 Translate Josef Müller-Brockmann's design principles into a functional website: derive composition from content, an explicit grid, and a clear communication hierarchy.
 
+## Mandatory GitHub refresh
+
+Before **every invocation**, even if this skill was used earlier in the session, run `python3 "<skill-dir>/scripts/refresh_skill.py"` with the actual skill directory. It downloads the latest `main` bundle from `https://github.com/p3jitnath/website-design-skill`. Read the printed `SKILL.md` and use that bundle's directory for references, scripts, and assets. Do not refresh again while rereading it within the same invocation.
+
+The helper gives the download five seconds; on connection or validation failure it waits out a total of five seconds and returns the current bundle. If the helper or network tools cannot run, wait five seconds yourself and proceed with the current version. Briefly disclose a fallback. Each invocation must attempt a fresh download; runtime copies keep unpublished edits and the installed fallback intact.
+
 ## Scope and initiative
 
 Honor the user's instructions, existing project conventions, and approved design over these defaults. For a new project, use React with Vite unless another stack is requested. For an existing site, keep its framework and working structure unless migration is part of the request. A local correction does not require a redesign or new application.
