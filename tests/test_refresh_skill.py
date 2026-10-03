@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest import mock
+from urllib.error import HTTPError
 import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -53,7 +54,6 @@ class RefreshTests(unittest.TestCase):
 
     def download_fixture(self, args, **kwargs):
         self.assertEqual(kwargs["timeout"], refresh_skill.WAIT_SECONDS)
-        self.assertTrue(kwargs["check"])
         self.assertEqual(args[-2], "https://codeload.github.com/{}/zip/refs/heads/main".format(self.config["repository"]))
         Path(args[-1]).write_bytes(self.archive)
         return subprocess.CompletedProcess(args, 0)
@@ -62,7 +62,7 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual((self.skill / "SKILL.md").read_text(), self.original)
 
     def test_downloads_again_on_repeated_invocations(self):
-        with mock.patch.object(refresh_skill.subprocess, "run", side_effect=self.download_fixture) as network:
+        with mock.patch.object(refresh_skill, "run_download", side_effect=self.download_fixture) as network:
             first = refresh_skill.refresh(self.skill)
             second = refresh_skill.refresh(self.skill)
         self.assertEqual(network.call_count, 2)
@@ -72,7 +72,7 @@ class RefreshTests(unittest.TestCase):
         self.assert_current_unchanged()
 
     def test_new_upstream_version_replaces_runtime_reading(self):
-        with mock.patch.object(refresh_skill.subprocess, "run", side_effect=self.download_fixture):
+        with mock.patch.object(refresh_skill, "run_download", side_effect=self.download_fixture):
             first = refresh_skill.refresh(self.skill)
             self.archive = self.make_archive(body="New upstream version")
             second = refresh_skill.refresh(self.skill)
@@ -81,7 +81,7 @@ class RefreshTests(unittest.TestCase):
         self.assert_current_unchanged()
 
     def test_modified_cached_copy_is_not_reused(self):
-        with mock.patch.object(refresh_skill.subprocess, "run", side_effect=self.download_fixture):
+        with mock.patch.object(refresh_skill, "run_download", side_effect=self.download_fixture):
             first = refresh_skill.refresh(self.skill)
             first.write_text("Stale local edit")
             second = refresh_skill.refresh(self.skill)
@@ -93,14 +93,14 @@ class RefreshTests(unittest.TestCase):
         (self.skill / ".git").mkdir()
         sentinel = self.skill / ".git" / "HEAD"
         sentinel.write_text("unpublished branch")
-        with mock.patch.object(refresh_skill.subprocess, "run", side_effect=self.download_fixture):
+        with mock.patch.object(refresh_skill, "run_download", side_effect=self.download_fixture):
             result = refresh_skill.refresh(self.skill)
         self.assertNotEqual(result.parent, self.skill)
         self.assertEqual(sentinel.read_text(), "unpublished branch")
         self.assert_current_unchanged()
 
     def test_immediate_connection_failure_waits_five_seconds(self):
-        with mock.patch.object(refresh_skill.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "download")), \
+        with mock.patch.object(refresh_skill, "run_download", side_effect=subprocess.CalledProcessError(1, "download")), \
                 mock.patch.object(refresh_skill.time, "monotonic", side_effect=[100, 100]), \
                 mock.patch.object(refresh_skill.time, "sleep") as sleep:
             result = refresh_skill.refresh(self.skill)
@@ -109,7 +109,7 @@ class RefreshTests(unittest.TestCase):
         self.assert_current_unchanged()
 
     def test_timeout_does_not_add_another_five_second_wait(self):
-        with mock.patch.object(refresh_skill.subprocess, "run", side_effect=subprocess.TimeoutExpired("download", 5)), \
+        with mock.patch.object(refresh_skill, "run_download", side_effect=subprocess.TimeoutExpired("download", 5)), \
                 mock.patch.object(refresh_skill.time, "monotonic", side_effect=[100, 105.1]), \
                 mock.patch.object(refresh_skill.time, "sleep") as sleep:
             result = refresh_skill.refresh(self.skill)
@@ -119,7 +119,7 @@ class RefreshTests(unittest.TestCase):
 
     def test_corrupt_download_preserves_current_bundle(self):
         self.archive = b"not a ZIP archive"
-        with mock.patch.object(refresh_skill.subprocess, "run", side_effect=self.download_fixture), \
+        with mock.patch.object(refresh_skill, "run_download", side_effect=self.download_fixture), \
                 mock.patch.object(refresh_skill.time, "sleep"):
             result = refresh_skill.refresh(self.skill)
         self.assertEqual(result, self.skill / "SKILL.md")
@@ -127,7 +127,7 @@ class RefreshTests(unittest.TestCase):
 
     def test_wrong_skill_identity_preserves_current_bundle(self):
         self.archive = self.make_archive(skill_name="other-skill")
-        with mock.patch.object(refresh_skill.subprocess, "run", side_effect=self.download_fixture), \
+        with mock.patch.object(refresh_skill, "run_download", side_effect=self.download_fixture), \
                 mock.patch.object(refresh_skill.time, "sleep"):
             result = refresh_skill.refresh(self.skill)
         self.assertEqual(result, self.skill / "SKILL.md")
@@ -136,7 +136,7 @@ class RefreshTests(unittest.TestCase):
     def test_path_traversal_is_rejected(self):
         prefix = self.config["repository"].split("/")[1] + "-main/"
         self.archive = self.make_archive(extra=(prefix + "../escape.txt", "unsafe"))
-        with mock.patch.object(refresh_skill.subprocess, "run", side_effect=self.download_fixture), \
+        with mock.patch.object(refresh_skill, "run_download", side_effect=self.download_fixture), \
                 mock.patch.object(refresh_skill.time, "sleep"):
             result = refresh_skill.refresh(self.skill)
         self.assertEqual(result, self.skill / "SKILL.md")
@@ -151,11 +151,48 @@ class RefreshTests(unittest.TestCase):
         with zipfile.ZipFile(output, "w") as archive:
             archive.writestr(info, "/tmp/target")
         self.archive = output.getvalue()
-        with mock.patch.object(refresh_skill.subprocess, "run", side_effect=self.download_fixture), \
+        with mock.patch.object(refresh_skill, "run_download", side_effect=self.download_fixture), \
                 mock.patch.object(refresh_skill.time, "sleep"):
             result = refresh_skill.refresh(self.skill)
         self.assertEqual(result, self.skill / "SKILL.md")
         self.assert_current_unchanged()
+
+
+    def test_private_repository_uses_existing_git_credentials(self):
+        url = "https://codeload.github.com/{}/zip/refs/heads/main".format(self.config["repository"])
+        destination = self.root / "private.zip"
+        def git_command(command, **kwargs):
+            self.assertEqual(kwargs["env"]["GIT_TERMINAL_PROMPT"], "0")
+            self.assertLessEqual(kwargs["timeout"], 5)
+            self.assertGreater(kwargs["timeout"], 0)
+            if command[1] == "clone":
+                self.assertIn("git@github.com:" + self.config["repository"] + ".git", command)
+            else:
+                self.assertIn("archive", command)
+                destination.write_bytes(self.archive)
+            return subprocess.CompletedProcess(command, 0)
+        with mock.patch.object(refresh_skill, "urlopen", side_effect=HTTPError(url, 404, "Private", {}, None)), \
+                mock.patch.object(refresh_skill.subprocess, "run", side_effect=git_command) as git:
+            refresh_skill.download(url, destination)
+        self.assertEqual(git.call_count, 2)
+        self.assertEqual(destination.read_bytes(), self.archive)
+
+    def test_download_timeout_terminates_worker_group(self):
+        worker = mock.Mock()
+        worker.pid = 12345
+        worker.communicate.side_effect = [subprocess.TimeoutExpired("worker", 5), (None, None)]
+        with mock.patch.object(refresh_skill.subprocess, "Popen", return_value=worker) as spawn, \
+                mock.patch.object(refresh_skill.os, "killpg", create=True) as kill_group:
+            with self.assertRaises(subprocess.TimeoutExpired):
+                refresh_skill.run_download(["worker"], timeout=5)
+        self.assertEqual(worker.communicate.call_args_list[0], mock.call(timeout=5))
+        if os.name == "posix":
+            self.assertTrue(spawn.call_args[1]["start_new_session"])
+            kill_group.assert_called_once_with(worker.pid, refresh_skill.signal.SIGKILL)
+        else:
+            worker.kill.assert_called_once_with()
+        self.assertEqual(worker.communicate.call_count, 2)
+
 
 
 if __name__ == "__main__":

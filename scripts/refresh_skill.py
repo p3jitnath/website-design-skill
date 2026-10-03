@@ -7,11 +7,13 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
 import time
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import uuid
 import zipfile
@@ -20,10 +22,60 @@ WAIT_SECONDS = 5.0
 
 
 def download(url, destination):
+    started = time.monotonic()
     request = Request(url, headers={"User-Agent": "llm-skills-refresh"})
-    with urlopen(request, timeout=WAIT_SECONDS) as response:
-        with destination.open("wb") as output:
-            shutil.copyfileobj(response, output)
+    try:
+        with urlopen(request, timeout=WAIT_SECONDS) as response:
+            with destination.open("wb") as output:
+                shutil.copyfileobj(response, output)
+        return
+    except HTTPError as error:
+        if error.code not in (401, 403, 404):
+            raise
+        match = re.fullmatch(
+            r"https://codeload\.github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/zip/refs/heads/main",
+            url)
+        if not match:
+            raise
+        repository = match.group(1)
+    # Private repositories use existing SSH credentials, without an auth prompt.
+    environment = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+    environment.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+    with tempfile.TemporaryDirectory(prefix=".git-download-", dir=str(destination.parent)) as temporary:
+        checkout = Path(temporary) / "checkout"
+        commands = [
+            ["git", "clone", "--quiet", "--depth", "1", "--single-branch",
+             "--branch", "main", "git@github.com:" + repository + ".git", str(checkout)],
+            ["git", "-C", str(checkout), "archive", "--format=zip",
+             "--prefix=" + repository.split("/")[1] + "-main/",
+             "--output=" + str(destination), "HEAD"],
+        ]
+        for command in commands:
+            remaining = WAIT_SECONDS - (time.monotonic() - started)
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(command, WAIT_SECONDS)
+            subprocess.run(command, check=True, env=environment, timeout=remaining,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def run_download(command, timeout):
+    # Terminate the worker and any Git/SSH descendants when its budget expires.
+    worker = subprocess.Popen(command, start_new_session=(os.name == "posix"),
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        worker.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            if os.name == "posix":
+                os.killpg(worker.pid, signal.SIGKILL)
+            else:
+                worker.kill()
+        except ProcessLookupError:
+            pass
+        worker.communicate()
+        raise
+    if worker.returncode:
+        raise subprocess.CalledProcessError(worker.returncode, command)
 
 
 def unpack(archive, destination, repository, skill_name):
@@ -91,10 +143,8 @@ def refresh(skill_dir):
             url = "https://codeload.github.com/{}/zip/refs/heads/main".format(repository)
             # A separate process bounds DNS, connection, and the entire transfer,
             # including a connection that stalls between individual reads.
-            subprocess.run([sys.executable, str(Path(__file__).resolve()),
-                            "--download", url, str(archive)],
-                           check=True, timeout=WAIT_SECONDS,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            run_download([sys.executable, str(Path(__file__).resolve()),
+                          "--download", url, str(archive)], timeout=WAIT_SECONDS)
             bundle = staging / "bundle"
             bundle.mkdir()
             unpack(archive, bundle, repository, skill_name)
