@@ -37,6 +37,8 @@ For a local edit, check affected routes, components, interactions, and responsiv
 
 ## Communication and form
 
+- Authored visible copy, accessibility text, and documentation follow the [prose punctuation rule](../SKILL.md#prose-punctuation), omitting semicolons and colons outside titles while preserving literal syntax and protected text.
+
 - Content hierarchy is understandable before decoration or motion.
 - Typography is predominantly sans-serif, flush-left/ragged-right, restrained in weights, and readable in measure.
 - Asymmetry feels balanced and intentional.
