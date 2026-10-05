@@ -11,7 +11,6 @@ import subprocess
 import tempfile
 import unittest
 from unittest import mock
-from urllib.error import HTTPError
 import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -53,7 +52,8 @@ class RefreshTests(unittest.TestCase):
         return output.getvalue()
 
     def download_fixture(self, args, **kwargs):
-        self.assertEqual(kwargs["timeout"], refresh_skill.WAIT_SECONDS)
+        self.assertGreater(kwargs["timeout"], 0)
+        self.assertLessEqual(kwargs["timeout"], refresh_skill.WAIT_SECONDS)
         self.assertEqual(args[-2], "https://codeload.github.com/{}/zip/refs/heads/main".format(self.config["repository"]))
         Path(args[-1]).write_bytes(self.archive)
         return subprocess.CompletedProcess(args, 0)
@@ -100,7 +100,7 @@ class RefreshTests(unittest.TestCase):
         self.assert_current_unchanged()
 
     def test_immediate_connection_failure_waits_five_seconds(self):
-        with mock.patch.object(refresh_skill, "run_download", side_effect=subprocess.CalledProcessError(1, "download")), \
+        with mock.patch.object(refresh_skill, "fetch_bundle", side_effect=subprocess.CalledProcessError(1, "download")), \
                 mock.patch.object(refresh_skill.time, "monotonic", side_effect=[100, 100]), \
                 mock.patch.object(refresh_skill.time, "sleep") as sleep:
             result = refresh_skill.refresh(self.skill)
@@ -109,7 +109,7 @@ class RefreshTests(unittest.TestCase):
         self.assert_current_unchanged()
 
     def test_timeout_does_not_add_another_five_second_wait(self):
-        with mock.patch.object(refresh_skill, "run_download", side_effect=subprocess.TimeoutExpired("download", 5)), \
+        with mock.patch.object(refresh_skill, "fetch_bundle", side_effect=subprocess.TimeoutExpired("download", 5)), \
                 mock.patch.object(refresh_skill.time, "monotonic", side_effect=[100, 105.1]), \
                 mock.patch.object(refresh_skill.time, "sleep") as sleep:
             result = refresh_skill.refresh(self.skill)
@@ -158,7 +158,7 @@ class RefreshTests(unittest.TestCase):
         self.assert_current_unchanged()
 
 
-    def test_private_repository_uses_existing_git_credentials(self):
+    def test_ssh_download_uses_existing_git_credentials(self):
         url = "https://codeload.github.com/{}/zip/refs/heads/main".format(self.config["repository"])
         destination = self.root / "private.zip"
         def git_command(command, **kwargs):
@@ -171,11 +171,79 @@ class RefreshTests(unittest.TestCase):
                 self.assertIn("archive", command)
                 destination.write_bytes(self.archive)
             return subprocess.CompletedProcess(command, 0)
-        with mock.patch.object(refresh_skill, "urlopen", side_effect=HTTPError(url, 404, "Private", {}, None)), \
-                mock.patch.object(refresh_skill.subprocess, "run", side_effect=git_command) as git:
-            refresh_skill.download(url, destination)
+        with mock.patch.object(refresh_skill.subprocess, "run", side_effect=git_command) as git:
+            refresh_skill.download(url, destination, transport="ssh")
         self.assertEqual(git.call_count, 2)
         self.assertEqual(destination.read_bytes(), self.archive)
+
+    def test_https_download_does_not_require_git(self):
+        destination = self.root / "https.zip"
+        url = "https://codeload.github.com/{}/zip/refs/heads/main".format(self.config["repository"])
+        with mock.patch.object(refresh_skill, "urlopen", return_value=io.BytesIO(self.archive)) as http, \
+                mock.patch.object(refresh_skill.subprocess, "run") as git:
+            refresh_skill.download(url, destination, transport="https")
+        self.assertEqual(destination.read_bytes(), self.archive)
+        self.assertEqual(http.call_count, 1)
+        git.assert_not_called()
+
+    def test_ssh_connection_failure_uses_https_for_the_same_invocation(self):
+        attempts = []
+        def worker(command, **kwargs):
+            transport = command[-3]
+            attempts.append(transport)
+            if transport == "ssh":
+                raise subprocess.CalledProcessError(128, command)
+            Path(command[-1]).write_bytes(self.archive)
+        with mock.patch.object(refresh_skill, "run_download", side_effect=worker):
+            result = refresh_skill.refresh(self.skill)
+        self.assertEqual(attempts, ["ssh", "https"])
+        self.assertIn("Latest", result.read_text())
+        self.assert_current_unchanged()
+
+    def test_early_ssh_failure_leaves_the_remaining_budget_for_https(self):
+        staging = self.root / "staging"
+        staging.mkdir()
+        time_now = [100.0]
+        budgets = []
+        def worker(command, **kwargs):
+            budgets.append(kwargs["timeout"])
+            if command[-3] == "ssh":
+                time_now[0] += 2.0
+                raise subprocess.CalledProcessError(128, command)
+            Path(command[-1]).write_bytes(self.archive)
+        with mock.patch.object(refresh_skill.time, "monotonic", side_effect=lambda: time_now[0]), \
+                mock.patch.object(refresh_skill, "run_download", side_effect=worker):
+            archive, bundle, transport = refresh_skill.fetch_bundle(
+                self.config["repository"], self.config["skill_name"], staging, 105.0)
+        self.assertEqual(budgets, [5.0, 3.0])
+        self.assertEqual(transport, "https")
+        self.assertTrue((bundle / "assets/example.txt").is_file())
+
+    def test_stalled_ssh_does_not_extend_the_total_download_budget(self):
+        staging = self.root / "staging"
+        staging.mkdir()
+        time_now = [100.0]
+        def worker(command, **kwargs):
+            time_now[0] += kwargs["timeout"]
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        with mock.patch.object(refresh_skill.time, "monotonic", side_effect=lambda: time_now[0]), \
+                mock.patch.object(refresh_skill, "run_download", side_effect=worker) as network:
+            with self.assertRaises(subprocess.TimeoutExpired):
+                refresh_skill.fetch_bundle(self.config["repository"], self.config["skill_name"], staging, 105.0)
+        self.assertEqual(network.call_count, 1)
+        self.assertEqual(time_now[0], 105.0)
+
+    def test_invalid_ssh_archive_can_fall_back_to_valid_https_bundle(self):
+        attempts = []
+        def worker(command, **kwargs):
+            transport = command[-3]
+            attempts.append(transport)
+            Path(command[-1]).write_bytes(b"invalid archive" if transport == "ssh" else self.archive)
+        with mock.patch.object(refresh_skill, "run_download", side_effect=worker):
+            result = refresh_skill.refresh(self.skill)
+        self.assertEqual(attempts, ["ssh", "https"])
+        self.assertIn("Latest", result.read_text())
+        self.assert_current_unchanged()
 
     def test_download_timeout_terminates_worker_group(self):
         worker = mock.Mock()

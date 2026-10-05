@@ -13,7 +13,6 @@ import subprocess
 import sys
 import tempfile
 import time
-from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import uuid
 import zipfile
@@ -21,30 +20,30 @@ import zipfile
 WAIT_SECONDS = 5.0
 
 
-def download(url, destination):
+def download(url, destination, transport="https"):
+    """Download through one transport inside the bounded worker process."""
     started = time.monotonic()
-    request = Request(url, headers={"User-Agent": "llm-skills-refresh"})
-    try:
+    if transport == "https":
+        request = Request(url, headers={"User-Agent": "llm-skills-refresh"})
         with urlopen(request, timeout=WAIT_SECONDS) as response:
             with destination.open("wb") as output:
                 shutil.copyfileobj(response, output)
         return
-    except HTTPError as error:
-        if error.code not in (401, 403, 404):
-            raise
-        match = re.fullmatch(
-            r"https://codeload\.github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/zip/refs/heads/main",
-            url)
-        if not match:
-            raise
-        repository = match.group(1)
-    # Private repositories use existing SSH credentials, without an auth prompt.
+    if transport != "ssh":
+        raise ValueError("Unknown GitHub transport")
+    match = re.fullmatch(
+        r"https://codeload\.github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/zip/refs/heads/main",
+        url)
+    if not match:
+        raise ValueError("Unexpected GitHub source URL")
+    repository = match.group(1)
+    # Use existing SSH credentials without asking for a password or token.
     environment = dict(os.environ, GIT_TERMINAL_PROMPT="0")
-    environment.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+    environment.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o ConnectTimeout=2")
     with tempfile.TemporaryDirectory(prefix=".git-download-", dir=str(destination.parent)) as temporary:
         checkout = Path(temporary) / "checkout"
         commands = [
-            ["git", "clone", "--quiet", "--depth", "1", "--single-branch",
+            ["git", "clone", "--quiet", "--no-checkout", "--depth", "1", "--single-branch",
              "--branch", "main", "git@github.com:" + repository + ".git", str(checkout)],
             ["git", "-C", str(checkout), "archive", "--format=zip",
              "--prefix=" + repository.split("/")[1] + "-main/",
@@ -56,6 +55,35 @@ def download(url, destination):
                 raise subprocess.TimeoutExpired(command, WAIT_SECONDS)
             subprocess.run(command, check=True, env=environment, timeout=remaining,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def fetch_bundle(repository, skill_name, staging, deadline):
+    """Try SSH then HTTPS, validating each result before accepting it."""
+    archive = staging / "latest.zip"
+    url = "https://codeload.github.com/{}/zip/refs/heads/main".format(repository)
+    failure = None
+    for transport in ("ssh", "https"):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        timeout = remaining
+        try:
+            if archive.exists():
+                archive.unlink()
+            # Each worker uses only the remaining budget. Early SSH failures
+            # allow HTTPS to run, while a stalled transfer cannot extend the cap.
+            run_download([sys.executable, str(Path(__file__).resolve()),
+                          "--download", transport, url, str(archive)], timeout=timeout)
+            bundle = staging / transport
+            bundle.mkdir()
+            unpack(archive, bundle, repository, skill_name)
+            return archive, bundle, transport
+        except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile,
+                subprocess.SubprocessError, RuntimeError) as error:
+            failure = error
+    if failure is not None:
+        raise failure
+    raise subprocess.TimeoutExpired("GitHub refresh", WAIT_SECONDS)
 
 
 def run_download(command, timeout):
@@ -123,7 +151,7 @@ def same_bundle(first, second):
 
 
 def refresh(skill_dir):
-    """Leave the installed/source bundle intact; return a verified runtime copy."""
+    """Leave the installed/source bundle intact and return a verified runtime copy."""
     skill_dir = skill_dir.resolve()
     started = time.monotonic()
     try:
@@ -137,31 +165,24 @@ def refresh(skill_dir):
         cache_root = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache")))
         cache = cache_root / "llm-skills" / skill_name
         cache.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix=".download-", dir=str(cache)) as staging:
+        with tempfile.TemporaryDirectory(prefix="llm-skill-download-") as staging:
             staging = Path(staging)
-            archive = staging / "latest.zip"
-            url = "https://codeload.github.com/{}/zip/refs/heads/main".format(repository)
-            # A separate process bounds DNS, connection, and the entire transfer,
-            # including a connection that stalls between individual reads.
-            run_download([sys.executable, str(Path(__file__).resolve()),
-                          "--download", url, str(archive)], timeout=WAIT_SECONDS)
-            bundle = staging / "bundle"
-            bundle.mkdir()
-            unpack(archive, bundle, repository, skill_name)
+            archive, bundle, transport = fetch_bundle(
+                repository, skill_name, staging, started + WAIT_SECONDS)
             digest = hashlib.sha256(archive.read_bytes()).hexdigest()
             target = cache / digest
             if not same_bundle(bundle, target):
                 if target.exists():
                     target = cache / (digest + "-" + uuid.uuid4().hex)
-                bundle.rename(target)
-        print("Downloaded latest main bundle from {}.".format(repository))
+                shutil.move(str(bundle), str(target))
+        print("Downloaded latest main bundle from {} using {}.".format(repository, transport.upper()))
         entrypoint = target / "SKILL.md"
     except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile,
             subprocess.SubprocessError, RuntimeError) as error:
         remaining = WAIT_SECONDS - (time.monotonic() - started)
         if remaining > 0:
             time.sleep(remaining)
-        print("GitHub refresh unavailable ({}); using the current bundle after "
+        print("GitHub refresh unavailable ({}). Using the current bundle after "
               "the five-second fallback.".format(type(error).__name__))
         entrypoint = skill_dir / "SKILL.md"
     print("Use skill: {}".format(entrypoint))
@@ -169,8 +190,8 @@ def refresh(skill_dir):
 
 
 def main():
-    if len(sys.argv) == 4 and sys.argv[1] == "--download":
-        download(sys.argv[2], Path(sys.argv[3]))
+    if len(sys.argv) == 5 and sys.argv[1] == "--download":
+        download(sys.argv[3], Path(sys.argv[4]), transport=sys.argv[2])
     elif len(sys.argv) == 1:
         refresh(Path(__file__).resolve().parent.parent)
     else:

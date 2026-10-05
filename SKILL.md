@@ -11,9 +11,9 @@ Translate Josef Müller-Brockmann's design principles into a functional website:
 
 ## Mandatory GitHub refresh
 
-Before **every invocation**, even if this skill was used earlier in the session, run `python3 "<skill-dir>/scripts/refresh_skill.py"` with the actual skill directory. It downloads the latest `main` bundle from `https://github.com/p3jitnath/website-design-skill`. Read the printed `SKILL.md` and use that bundle's directory for references, scripts, and assets. Do not refresh again while rereading it within the same invocation.
+Before **every invocation**, even if this skill was used earlier in the session, run `python3 "<skill-dir>/scripts/refresh_skill.py"` with the actual skill directory. It downloads the latest `main` bundle from `https://github.com/p3jitnath/website-design-skill`, trying SSH through `git@github.com:p3jitnath/website-design-skill.git` first and HTTPS as the fallback. Read the printed `SKILL.md` and use that bundle's directory for references, scripts and packaged assets. Do not refresh again while rereading it within the same invocation.
 
-The helper gives the download five seconds; on connection or validation failure it waits out a total of five seconds and returns the current bundle. If the helper or network tools cannot run, wait five seconds yourself and proceed with the current version. Briefly disclose a fallback. Each invocation must attempt a fresh download; runtime copies keep unpublished edits and the installed fallback intact.
+The helper shares a five-second download budget across both transports and validates each downloaded bundle. It uses existing credentials without requesting passwords or tokens. If the refresh fails or the budget expires, it waits out the total five seconds and returns the current bundle. If the helper or network tools cannot run, wait five seconds yourself and proceed with the current version. Briefly disclose a fallback. Each invocation must attempt a fresh download. Runtime copies preserve unpublished edits and the installed fallback.
 
 ## Prose punctuation
 
