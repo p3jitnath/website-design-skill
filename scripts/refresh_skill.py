@@ -13,11 +13,49 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 import uuid
 import zipfile
 
 WAIT_SECONDS = 5.0
+
+
+class RefreshError(RuntimeError):
+    """A diagnostic safe to display without raw credential-bearing output."""
+
+
+def failure_reason(error):
+    """Describe failures without echoing URLs, credentials or Git output."""
+    if isinstance(error, RefreshError):
+        return str(error)
+    if isinstance(error, subprocess.TimeoutExpired):
+        return "timed out"
+    if isinstance(error, HTTPError):
+        if error.code == 404:
+            return "HTTP 404 (repository missing or access denied)"
+        return "HTTP {}".format(error.code)
+    if isinstance(error, FileNotFoundError):
+        return "required executable or file unavailable"
+    detail = str(error.stderr or "") if isinstance(error, subprocess.CalledProcessError) else str(error)
+    detail = detail.lower()
+    if "repository not found" in detail:
+        return "repository missing or credentials lack access"
+    if any(message in detail for message in ("permission denied (publickey)", "authentication failed",
+                                             "could not read username", "terminal prompts disabled")):
+        return "credentials unavailable or rejected"
+    if any(message in detail for message in ("could not resolve", "name or service not known",
+                                             "nodename nor servname")):
+        return "DNS lookup failed"
+    if "certificate" in detail or "ssl" in detail:
+        return "TLS certificate verification failed"
+    if "host key verification failed" in detail:
+        return "SSH host key verification failed"
+    if "timed out" in detail:
+        return "connection timed out"
+    if isinstance(error, (OSError, URLError)):
+        return "connection or filesystem unavailable"
+    return type(error).__name__
 
 
 def download(url, destination, transport="https"):
@@ -29,7 +67,7 @@ def download(url, destination, transport="https"):
             with destination.open("wb") as output:
                 shutil.copyfileobj(response, output)
         return
-    if transport != "ssh":
+    if transport not in ("ssh", "https-git"):
         raise ValueError("Unknown GitHub transport")
     match = re.fullmatch(
         r"https://codeload\.github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/zip/refs/heads/main",
@@ -37,14 +75,16 @@ def download(url, destination, transport="https"):
     if not match:
         raise ValueError("Unexpected GitHub source URL")
     repository = match.group(1)
-    # Use existing SSH credentials without asking for a password or token.
-    environment = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+    # Let Git use configured SSH identities and HTTPS credential helpers.
+    environment = dict(os.environ, GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="never")
     environment.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o ConnectTimeout=2")
+    remote = ("git@github.com:" + repository + ".git" if transport == "ssh"
+              else "https://github.com/" + repository + ".git")
     with tempfile.TemporaryDirectory(prefix=".git-download-", dir=str(destination.parent)) as temporary:
         checkout = Path(temporary) / "checkout"
         commands = [
             ["git", "clone", "--quiet", "--no-checkout", "--depth", "1", "--single-branch",
-             "--branch", "main", "git@github.com:" + repository + ".git", str(checkout)],
+             "--branch", "main", remote, str(checkout)],
             ["git", "-C", str(checkout), "archive", "--format=zip",
              "--prefix=" + repository.split("/")[1] + "-main/",
              "--output=" + str(destination), "HEAD"],
@@ -54,56 +94,87 @@ def download(url, destination, transport="https"):
             if remaining <= 0:
                 raise subprocess.TimeoutExpired(command, WAIT_SECONDS)
             subprocess.run(command, check=True, env=environment, timeout=remaining,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, universal_newlines=True)
+
+
+def start_download(command):
+    return subprocess.Popen(command, start_new_session=(os.name == "posix"),
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, universal_newlines=True)
+
+
+def stop_download(worker):
+    """Reap the worker and terminate any Git or SSH descendants as well."""
+    try:
+        if os.name == "posix":
+            os.killpg(worker.pid, signal.SIGKILL)
+        elif worker.poll() is None:
+            worker.kill()
+    except ProcessLookupError:
+        pass
+    worker.wait()
+    if worker.stdout is not None:
+        worker.stdout.close()
 
 
 def fetch_bundle(repository, skill_name, staging, deadline):
-    """Try SSH then HTTPS, validating each result before accepting it."""
-    archive = staging / "latest.zip"
+    """Bound both downloading and validation with one shared worker deadline."""
     url = "https://codeload.github.com/{}/zip/refs/heads/main".format(repository)
-    failure = None
-    for transport in ("ssh", "https"):
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            break
-        timeout = remaining
-        try:
-            if archive.exists():
-                archive.unlink()
-            # Each worker uses only the remaining budget. Early SSH failures
-            # allow HTTPS to run, while a stalled transfer cannot extend the cap.
-            run_download([sys.executable, str(Path(__file__).resolve()),
-                          "--download", transport, url, str(archive)], timeout=timeout)
-            bundle = staging / transport
-            bundle.mkdir()
-            unpack(archive, bundle, repository, skill_name)
-            return archive, bundle, transport
-        except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile,
-                subprocess.SubprocessError, RuntimeError) as error:
-            failure = error
-    if failure is not None:
-        raise failure
-    raise subprocess.TimeoutExpired("GitHub refresh", WAIT_SECONDS)
-
-
-def run_download(command, timeout):
-    # Terminate the worker and any Git/SSH descendants when its budget expires.
-    worker = subprocess.Popen(command, start_new_session=(os.name == "posix"),
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    transports = ("ssh", "https-git", "https")
+    labels = ("SSH", "HTTPS Git", "HTTPS archive")
+    failures = {}
+    pending = {}
+    workers = []
+    index = 0
+    next_start = time.monotonic()
     try:
-        worker.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        try:
-            if os.name == "posix":
-                os.killpg(worker.pid, signal.SIGKILL)
-            else:
-                worker.kill()
-        except ProcessLookupError:
-            pass
-        worker.communicate()
-        raise
-    if worker.returncode:
-        raise subprocess.CalledProcessError(worker.returncode, command)
+        while pending or index < len(transports):
+            now = time.monotonic()
+            if now >= deadline:
+                for transport in pending:
+                    failures[transport] = "timed out"
+                break
+            if index < len(transports) and (not pending or now >= next_start):
+                transport = transports[index]
+                archive = staging / (transport + ".zip")
+                bundle = staging / transport
+                try:
+                    worker = start_download([sys.executable, str(Path(__file__).resolve()),
+                                             "--download", transport, url, str(archive),
+                                             str(bundle), repository, skill_name])
+                    workers.append(worker)
+                    pending[transport] = (worker, archive, bundle)
+                except OSError as error:
+                    failures[transport] = failure_reason(error)
+                index += 1
+                # Start fallbacks even when SSH is still transferring a valid bundle.
+                next_start = now + 0.5
+            for transport, (worker, archive, bundle) in list(pending.items()):
+                if worker.poll() is None:
+                    continue
+                del pending[transport]
+                try:
+                    output, _ = worker.communicate()
+                    if worker.returncode:
+                        raise RefreshError(output.strip() or "download worker failed")
+                    return archive, bundle, transport
+                except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile,
+                        subprocess.SubprocessError, RuntimeError) as error:
+                    failures[transport] = failure_reason(error)
+            if pending:
+                remaining = deadline - time.monotonic()
+                delay = min(0.02, remaining)
+                if index < len(transports):
+                    delay = min(delay, next_start - time.monotonic())
+                if delay > 0:
+                    time.sleep(delay)
+    finally:
+        for worker in workers:
+            stop_download(worker)
+    if failures:
+        raise RefreshError(". ".join("{} {}".format(label, failures[transport])
+                                     for transport, label in zip(transports, labels)
+                                     if transport in failures))
+    raise RefreshError("download budget exhausted")
 
 
 def unpack(archive, destination, repository, skill_name):
@@ -183,19 +254,27 @@ def refresh(skill_dir):
         if remaining > 0:
             time.sleep(remaining)
         print("GitHub refresh unavailable ({}). Using the current bundle after "
-              "the five-second fallback.".format(type(error).__name__))
+              "the five-second fallback.".format(failure_reason(error)))
         entrypoint = skill_dir / "SKILL.md"
-    print("Use skill: {}".format(entrypoint))
+    print("Use skill from {}".format(entrypoint))
     return entrypoint
 
 
 def main():
-    if len(sys.argv) == 5 and sys.argv[1] == "--download":
-        download(sys.argv[3], Path(sys.argv[4]), transport=sys.argv[2])
+    if len(sys.argv) == 8 and sys.argv[1] == "--download":
+        try:
+            download(sys.argv[3], Path(sys.argv[4]), transport=sys.argv[2])
+            bundle = Path(sys.argv[5])
+            bundle.mkdir()
+            unpack(Path(sys.argv[4]), bundle, sys.argv[6], sys.argv[7])
+        except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile,
+                subprocess.SubprocessError, RuntimeError) as error:
+            print(failure_reason(error))
+            raise SystemExit(1)
     elif len(sys.argv) == 1:
         refresh(Path(__file__).resolve().parent.parent)
     else:
-        raise SystemExit("Usage: python3 <skill-dir>/scripts/refresh_skill.py")
+        raise SystemExit("Usage python3 <skill-dir>/scripts/refresh_skill.py")
 
 
 if __name__ == "__main__":
