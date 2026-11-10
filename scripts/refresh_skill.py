@@ -19,7 +19,7 @@ from urllib.request import Request, urlopen
 import uuid
 import zipfile
 
-DEFAULT_TIMEOUT_SECONDS = 60.0
+DEFAULT_TIMEOUT_SECONDS = 120.0
 
 
 class RefreshError(RuntimeError):
