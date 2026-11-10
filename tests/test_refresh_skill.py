@@ -118,16 +118,16 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(sentinel.read_text(), "unpublished branch")
         self.assert_current_unchanged()
 
-    def test_immediate_connection_failure_waits_five_seconds(self):
+    def test_definite_connection_failure_does_not_wait_out_timeout(self):
         with mock.patch.object(refresh_skill, "fetch_bundle", side_effect=subprocess.CalledProcessError(1, "download")), \
                 mock.patch.object(refresh_skill.time, "monotonic", side_effect=[100, 100]), \
                 mock.patch.object(refresh_skill.time, "sleep") as sleep:
             result = refresh_skill.refresh(self.skill)
-        sleep.assert_called_once_with(5.0)
+        sleep.assert_not_called()
         self.assertEqual(result, self.skill / "SKILL.md")
         self.assert_current_unchanged()
 
-    def test_timeout_does_not_add_another_five_second_wait(self):
+    def test_timeout_does_not_add_another_wait(self):
         with mock.patch.object(refresh_skill, "fetch_bundle", side_effect=subprocess.TimeoutExpired("download", 5)), \
                 mock.patch.object(refresh_skill.time, "monotonic", side_effect=[100, 105.1]), \
                 mock.patch.object(refresh_skill.time, "sleep") as sleep:
@@ -135,6 +135,30 @@ class RefreshTests(unittest.TestCase):
         sleep.assert_not_called()
         self.assertEqual(result, self.skill / "SKILL.md")
         self.assert_current_unchanged()
+
+    def test_configured_timeout_reaches_download_worker(self):
+        with mock.patch.dict(os.environ, {"LLM_SKILL_REFRESH_TIMEOUT_SECONDS": "120"}), \
+                mock.patch.object(refresh_skill.time, "monotonic", return_value=100), \
+                mock.patch.object(refresh_skill, "start_download", side_effect=self.download_fixture) as worker:
+            result = refresh_skill.refresh(self.skill)
+        self.assertEqual(float(worker.call_args[0][0][9]), 120)
+        self.assertIn("Latest", result.read_text())
+        self.assert_current_unchanged()
+
+    def test_invalid_timeout_falls_back_without_network_or_exposing_value(self):
+        for value in ("0", "-1", "nan", "inf", "invalid-fixture-value"):
+            with self.subTest(value=value):
+                output = io.StringIO()
+                with mock.patch.dict(os.environ, {"LLM_SKILL_REFRESH_TIMEOUT_SECONDS": value}), \
+                        mock.patch.object(refresh_skill, "start_download") as network, \
+                        mock.patch.object(refresh_skill.time, "sleep") as sleep, \
+                        contextlib.redirect_stdout(output):
+                    result = refresh_skill.refresh(self.skill)
+                self.assertEqual(result, self.skill / "SKILL.md")
+                self.assertIn("must be a positive finite number", output.getvalue())
+                self.assertNotIn("invalid-fixture-value", output.getvalue())
+                network.assert_not_called()
+                sleep.assert_not_called()
 
     def test_corrupt_download_preserves_current_bundle(self):
         self.archive = b"not a ZIP archive"
@@ -182,8 +206,8 @@ class RefreshTests(unittest.TestCase):
         destination = self.root / "private.zip"
         def git_command(command, **kwargs):
             self.assertEqual(kwargs["env"]["GIT_TERMINAL_PROMPT"], "0")
-            self.assertLessEqual(kwargs["timeout"], 5)
-            self.assertGreater(kwargs["timeout"], 0)
+            self.assertLessEqual(kwargs["timeout"], 120)
+            self.assertGreater(kwargs["timeout"], 100)
             if command[1] == "clone":
                 self.assertIn("git@github.com:" + self.config["repository"] + ".git", command)
             else:
@@ -191,7 +215,7 @@ class RefreshTests(unittest.TestCase):
                 destination.write_bytes(self.archive)
             return subprocess.CompletedProcess(command, 0)
         with mock.patch.object(refresh_skill.subprocess, "run", side_effect=git_command) as git:
-            refresh_skill.download(url, destination, transport="ssh")
+            refresh_skill.download(url, destination, transport="ssh", timeout=120)
         self.assertEqual(git.call_count, 2)
         self.assertEqual(destination.read_bytes(), self.archive)
 
@@ -312,7 +336,7 @@ class RefreshTests(unittest.TestCase):
         result = subprocess.run(
             [refresh_skill.sys.executable, str(ROOT / "scripts/refresh_skill.py"), "--download",
              "https-git", url, str(self.root / "archive.zip"), str(self.root / "bundle"),
-             self.config["repository"], self.config["skill_name"]],
+             self.config["repository"], self.config["skill_name"], "60"],
             env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=5)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stdout.strip(), "credentials unavailable or rejected")
@@ -341,7 +365,7 @@ class RefreshTests(unittest.TestCase):
             "from pathlib import Path\n"
             "sys.path.insert(0, {!r})\n"
             "import refresh_skill\n"
-            "def download(url, destination, transport):\n"
+            "def download(url, destination, transport, timeout):\n"
             "    shutil.copyfile({!r}, str(destination))\n"
             "def unpack(archive, destination, repository, skill_name):\n"
             "    destination.with_suffix('.validating').write_text('started')\n"

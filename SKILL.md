@@ -11,11 +11,11 @@ Translate Josef Müller-Brockmann's design principles into a functional website:
 
 ## Mandatory GitHub refresh
 
-Before every invocation, even if this skill was used earlier in the session, run `python3 "<skill-dir>/scripts/refresh_skill.py"` using the actual skill directory. The helper attempts to download the latest `main` bundle from `https://github.com/p3jitnath/website-design-skill` through SSH Git, HTTPS Git with existing credential helpers, then an HTTPS archive for public access. Fallbacks can start while a slower attempt continues, and all workers share a five-second download deadline.
+Before every invocation, even if this skill was used earlier in the session, run `python3 "<skill-dir>/scripts/refresh_skill.py"` using the actual skill directory. The helper attempts to download the latest `main` bundle from `https://github.com/p3jitnath/website-design-skill` through SSH Git, HTTPS Git with existing credential helpers, then an HTTPS archive for public access. Fallbacks can start while a slower attempt continues. Download and validation workers share a 60-second deadline by default, configurable through the positive finite number of seconds in `LLM_SKILL_REFRESH_TIMEOUT_SECONDS`, such as `120` for a slow connection.
 
 The helper prints the path of the selected `SKILL.md`. Open that file and use its directory for references, scripts and packaged assets throughout this invocation. Run the helper only once per invocation, including when the selected bundle repeats this instruction. A successful refresh selects a validated runtime copy without overwriting the installed bundle or unpublished edits.
 
-Use existing credentials without requesting passwords or tokens. If all attempts fail, the helper reports the failure categories, waits out the total five seconds and selects the current bundle. Briefly disclose the fallback. If the helper cannot run, wait five seconds and use the current bundle. Attempt a fresh download on each new invocation.
+Use existing credentials without requesting passwords or tokens. If all attempts fail or the deadline expires, the helper reports the failure categories and selects the current bundle without an artificial wait. Briefly disclose the fallback. If the helper cannot run, use the current bundle and disclose that limitation. Attempt a fresh download on each new invocation.
 
 ## Prose punctuation
 

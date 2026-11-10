@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Fetch a fresh GitHub skill bundle per invocation, with a five-second fallback."""
+"""Fetch a fresh GitHub skill bundle within a configurable shared deadline."""
 
 import hashlib
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -18,7 +19,7 @@ from urllib.request import Request, urlopen
 import uuid
 import zipfile
 
-WAIT_SECONDS = 5.0
+DEFAULT_TIMEOUT_SECONDS = 60.0
 
 
 class RefreshError(RuntimeError):
@@ -58,12 +59,23 @@ def failure_reason(error):
     return type(error).__name__
 
 
-def download(url, destination, transport="https"):
+def refresh_timeout():
+    value = os.environ.get("LLM_SKILL_REFRESH_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT_SECONDS))
+    try:
+        timeout = float(value)
+    except ValueError:
+        raise RefreshError("LLM_SKILL_REFRESH_TIMEOUT_SECONDS must be a positive finite number")
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise RefreshError("LLM_SKILL_REFRESH_TIMEOUT_SECONDS must be a positive finite number")
+    return timeout
+
+
+def download(url, destination, transport="https", timeout=DEFAULT_TIMEOUT_SECONDS):
     """Download through one transport inside the bounded worker process."""
     started = time.monotonic()
     if transport == "https":
         request = Request(url, headers={"User-Agent": "llm-skills-refresh"})
-        with urlopen(request, timeout=WAIT_SECONDS) as response:
+        with urlopen(request, timeout=timeout) as response:
             with destination.open("wb") as output:
                 shutil.copyfileobj(response, output)
         return
@@ -90,9 +102,9 @@ def download(url, destination, transport="https"):
              "--output=" + str(destination), "HEAD"],
         ]
         for command in commands:
-            remaining = WAIT_SECONDS - (time.monotonic() - started)
+            remaining = timeout - (time.monotonic() - started)
             if remaining <= 0:
-                raise subprocess.TimeoutExpired(command, WAIT_SECONDS)
+                raise subprocess.TimeoutExpired(command, timeout)
             subprocess.run(command, check=True, env=environment, timeout=remaining,
                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, universal_newlines=True)
 
@@ -140,7 +152,8 @@ def fetch_bundle(repository, skill_name, staging, deadline):
                 try:
                     worker = start_download([sys.executable, str(Path(__file__).resolve()),
                                              "--download", transport, url, str(archive),
-                                             str(bundle), repository, skill_name])
+                                             str(bundle), repository, skill_name,
+                                             str(deadline - time.monotonic())])
                     workers.append(worker)
                     pending[transport] = (worker, archive, bundle)
                 except OSError as error:
@@ -226,6 +239,7 @@ def refresh(skill_dir):
     skill_dir = skill_dir.resolve()
     started = time.monotonic()
     try:
+        timeout = refresh_timeout()
         config = json.loads((skill_dir / "scripts" / "refresh-source.json").read_text())
         repository = config["repository"]
         skill_name = config["skill_name"]
@@ -239,7 +253,7 @@ def refresh(skill_dir):
         with tempfile.TemporaryDirectory(prefix="llm-skill-download-") as staging:
             staging = Path(staging)
             archive, bundle, transport = fetch_bundle(
-                repository, skill_name, staging, started + WAIT_SECONDS)
+                repository, skill_name, staging, started + timeout)
             digest = hashlib.sha256(archive.read_bytes()).hexdigest()
             target = cache / digest
             if not same_bundle(bundle, target):
@@ -250,20 +264,16 @@ def refresh(skill_dir):
         entrypoint = target / "SKILL.md"
     except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile,
             subprocess.SubprocessError, RuntimeError) as error:
-        remaining = WAIT_SECONDS - (time.monotonic() - started)
-        if remaining > 0:
-            time.sleep(remaining)
-        print("GitHub refresh unavailable ({}). Using the current bundle after "
-              "the five-second fallback.".format(failure_reason(error)))
+        print("GitHub refresh unavailable ({}). Using the current bundle.".format(failure_reason(error)))
         entrypoint = skill_dir / "SKILL.md"
     print("Use skill from {}".format(entrypoint))
     return entrypoint
 
 
 def main():
-    if len(sys.argv) == 8 and sys.argv[1] == "--download":
+    if len(sys.argv) == 9 and sys.argv[1] == "--download":
         try:
-            download(sys.argv[3], Path(sys.argv[4]), transport=sys.argv[2])
+            download(sys.argv[3], Path(sys.argv[4]), transport=sys.argv[2], timeout=float(sys.argv[8]))
             bundle = Path(sys.argv[5])
             bundle.mkdir()
             unpack(Path(sys.argv[4]), bundle, sys.argv[6], sys.argv[7])
